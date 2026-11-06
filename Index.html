@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root { --red:#b91c1c; --red2:#991b1b; --green:#15803d; --amber:#b45309; --grey:#6b7280; --bg:#f6f4f1; --card:#fff; --line:#e5e7eb; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:#111; font-size:16px; }
+  header { background:var(--red); color:#fff; padding:14px 16px 0; position:sticky; top:0; z-index:5; }
+  header h1 { margin:0; font-size:19px; }
+  header .who { font-size:13px; opacity:.9; margin-top:2px; }
+  nav { display:flex; gap:4px; margin-top:10px; overflow-x:auto; }
+  nav button { flex:1; background:transparent; color:#fff; border:0; padding:10px 6px; font-size:14px; border-bottom:3px solid transparent; opacity:.8; }
+  nav button.on { border-color:#fff; opacity:1; font-weight:600; }
+  main { max-width:640px; margin:0 auto; padding:14px; }
+  .card { background:var(--card); border-radius:14px; padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .big { font-size:42px; font-weight:700; text-align:center; letter-spacing:1px; }
+  .sub { text-align:center; color:var(--grey); margin-top:4px; }
+  .status { text-align:center; font-size:18px; margin:12px 0; font-weight:600; }
+  .btn { display:block; width:100%; padding:16px; font-size:18px; font-weight:600; border:0; border-radius:12px; margin-top:10px; color:#fff; background:var(--red); }
+  .btn:active { transform:scale(.99); }
+  .btn.green { background:var(--green); } .btn.amber { background:var(--amber); } .btn.grey { background:#4b5563; }
+  .btn.light { background:#f3f4f6; color:#111; }
+  .btn.small { padding:10px; font-size:15px; display:inline-block; width:auto; margin-right:6px; }
+  .btn:disabled { opacity:.5; }
+  input, select, textarea { width:100%; font-size:16px; padding:11px; border:1px solid #d1d5db; border-radius:10px; margin-top:4px; background:#fff; }
+  label { display:block; margin-top:10px; font-size:14px; color:#374151; }
+  .row2 { display:flex; gap:10px; } .row2 > * { flex:1; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td, th { padding:8px 4px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { color:var(--grey); font-weight:500; font-size:13px; }
+  .tag { display:inline-block; font-size:12px; padding:2px 8px; border-radius:99px; background:#e5e7eb; white-space:nowrap; }
+  .tag.ok { background:#dcfce7; color:#166534; } .tag.warn { background:#fef3c7; color:#92400e; } .tag.bad { background:#fee2e2; color:#991b1b; }
+  .muted { color:var(--grey); font-size:13px; }
+  .msg { padding:12px 14px; border-radius:10px; margin-bottom:12px; font-size:15px; }
+  .msg.ok { background:#dcfce7; color:#14532d; } .msg.err { background:#fee2e2; color:#7f1d1d; } .msg.info { background:#e0f2fe; color:#0c4a6e; }
+  .weeknav { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .weeknav button { background:#f3f4f6; border:0; border-radius:10px; padding:10px 14px; font-size:18px; }
+  .weeknav b { text-align:center; flex:1; }
+  .shift { cursor:pointer; } .shift.block { background:#fffbeb; }
+  .totals { display:flex; justify-content:space-around; text-align:center; margin-top:10px; }
+  .totals div b { display:block; font-size:22px; }
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:flex-end; justify-content:center; z-index:20; }
+  .modal.on { display:flex; }
+  .sheet { background:#fff; width:100%; max-width:640px; max-height:92vh; overflow:auto; border-radius:18px 18px 0 0; padding:18px; }
+  .loading { position:fixed; inset:0; background:rgba(255,255,255,.6); display:none; align-items:center; justify-content:center; z-index:30; font-size:18px; }
+  .loading.on { display:flex; }
+  .hidden { display:none !important; }
+  h2 { font-size:18px; margin:0 0 8px; } h3 { font-size:16px; margin:0 0 6px; }
+  a { color:var(--red); }
+</style>
+</head>
+<body data-token="<?= token ?>" data-manager="<?= isManager ?>" data-bad="<?= badToken ?>" data-app="<?= appName ?>" data-page="<?= page ?>" data-week="<?= week ?>">
+
+<!-- Sign-in -->
+<div id="login" class="hidden">
+  <header><h1 class="appname"></h1><div class="who">Staff clock in / clock out</div><nav></nav></header>
+  <main>
+    <div id="loginMsg"></div>
+    <div class="card">
+      <h2>Sign in</h2>
+      <p>Enter the email address your manager registered for you. We'll email you a personal sign-in link.</p>
+      <label>Email<input id="loginEmail" type="email" autocomplete="email" placeholder="you@gmail.com"></label>
+      <button class="btn" id="loginBtn">Email me my link</button>
+    </div>
+  </main>
+</div>
+
+<!-- App -->
+<div id="app" class="hidden">
+  <header>
+    <h1 class="appname"></h1>
+    <div class="who" id="who"></div>
+    <nav id="tabs" class="hidden">
+      <button data-tab="clock" class="on">Clock</button>
+      <button data-tab="week">Timesheet</button>
+      <button data-tab="staff">Staff</button>
+      <button data-tab="settings">Settings</button>
+    </nav>
+  </header>
+  <main>
+    <div id="msg"></div>
+
+    <section id="tab-clock">
+      <div class="card">
+        <div class="big" id="clockNow">--:--</div>
+        <div class="sub" id="dateNow"></div>
+        <div class="status" id="statusText">Loading…</div>
+        <div id="actions"></div>
+        <label>Note (optional)<input id="note" maxlength="300" placeholder="e.g. Started early for delivery"></label>
+        <p class="muted" id="gpsNote">Your location is checked when you clock in or out. Please allow location access.</p>
+      </div>
+      <div class="card">
+        <h2>This week</h2>
+        <div id="myWeek" class="muted">Loading…</div>
+      </div>
+    </section>
+
+    <section id="tab-week" class="hidden">
+      <div class="card">
+        <div class="weeknav"><button id="prevWeek">‹</button><b id="weekLabel">…</b><button id="nextWeek">›</button></div>
+        <div class="muted" id="fnLabel" style="text-align:center;margin-top:6px"></div>
+        <div class="totals"><div><b id="totHours">0</b>hours</div><div><b id="totPay">$0</b>gross pay</div><div><b id="totBlock">0</b>to review</div></div>
+      </div>
+      <div id="otherWeeks"></div>
+      <div id="weekStaff"></div>
+      <div class="card">
+        <div id="approveInfo" class="muted"></div>
+        <button class="btn green" id="approveWeek">Approve week &amp; email summaries</button>
+      </div>
+    </section>
+
+    <section id="tab-staff" class="hidden">
+      <div class="card">
+        <h2>Staff</h2>
+        <div id="staffList">Loading…</div>
+        <button class="btn" id="addStaff">+ Add staff member</button>
+      </div>
+    </section>
+
+    <section id="tab-settings" class="hidden">
+      <div class="card">
+        <h2>Restaurant location</h2>
+        <p class="muted">Stand inside the restaurant and tap the button below. Clock-ins further away than the radius go to you for approval.</p>
+        <div id="locNow" style="margin:8px 0"></div>
+        <button class="btn" id="useLoc">📍 Use my current location</button>
+        <label>Allowed radius (metres)<input id="radius" type="number" min="20" max="5000"></label>
+      </div>
+      <div class="card">
+        <h2>Pay</h2>
+        <label>Pay fortnight starts on (a Monday)<input id="fortnight" type="date"></label>
+        <label>Business name<input id="bizName" maxlength="60"></label>
+        <button class="btn green" id="saveSettings">Save settings</button>
+        <p class="muted">All data is stored in your <a id="sheetLink" href="#" target="_blank">Google Sheet</a>.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Shift editor -->
+<div class="modal" id="shiftModal"><div class="sheet">
+  <h2 id="smTitle">Shift</h2>
+  <div id="smInfo" class="muted"></div>
+  <label>Date<input id="smDate" type="date"></label>
+  <div class="row2">
+    <label>Clock in<input id="smIn" type="time"></label>
+    <label>Clock out<input id="smOut" type="time"></label>
+  </div>
+  <div class="muted">If clock-out is earlier than clock-in, it counts as the next day.</div>
+  <label>Unpaid break (minutes)<input id="smBreak" type="number" min="0" max="600"></label>
+  <label>Manager note<input id="smNote" maxlength="300"></label>
+  <button class="btn green" id="smApprove">Save &amp; approve</button>
+  <button class="btn amber" id="smSave">Save only</button>
+  <button class="btn grey" id="smReject">Reject shift (no pay)</button>
+  <button class="btn light" id="smCancel">Cancel</button>
+</div></div>
+
+<!-- Staff editor -->
+<div class="modal" id="staffModal"><div class="sheet">
+  <h2 id="stTitle">Staff member</h2>
+  <label>Name<input id="stName" maxlength="60"></label>
+  <label>Email (their sign-in link is sent here)<input id="stEmail" type="email"></label>
+  <label>Hourly rate (AUD)<input id="stRate" type="number" min="0" step="0.01" inputmode="decimal"></label>
+  <div class="row2">
+    <label>Role<select id="stRole"><option>Staff</option><option>Manager</option></select></label>
+    <label>Active<select id="stActive"><option value="yes">Yes</option><option value="no">No (left)</option></select></label>
+  </div>
+  <button class="btn green" id="stSave">Save</button>
+  <div id="stLinkBtns">
+    <button class="btn" id="stSend">Email sign-in link</button>
+    <button class="btn grey" id="stReset">Reset link (old link stops working)</button>
+  </div>
+  <button class="btn light" id="stCancel">Cancel</button>
+</div></div>
+
+<div class="loading" id="loading">Please wait…</div>
+
+<script>
+(function () {
+  const B = document.body.dataset;
+  const TOKEN = B.token, IS_MGR = B.manager === '1';
+  let state = null, week = null, staff = [], editing = null, editingStaff = null, cur = 'AUD';
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const money = (n) => (cur === 'AUD' ? '$' : cur + ' ') + Number(n || 0).toFixed(2);
+  document.querySelectorAll('.appname').forEach((e) => (e.textContent = (B.app || 'MaaMadurai') + ' Clock'));
+
+  function call(fn, ...args) {
+    $('loading').classList.add('on');
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler((r) => { $('loading').classList.remove('on'); resolve(r); })
+        .withFailureHandler((e) => { $('loading').classList.remove('on'); reject(e); })[fn](...args);
+    });
+  }
+  function show(text, kind, where) {
+    const el = $(where || 'msg');
+    el.innerHTML = text ? '<div class="msg ' + (kind || 'ok') + '">' + esc(text) + '</div>' : '';
+    if (text) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  const fail = (e) => show((e && e.message) || String(e), 'err');
+
+  function tagFor(x) {
+    if (x.approval === 'Rejected') return '<span class="tag bad">Rejected</span>';
+    if (x.status === 'Missing clock-out') return '<span class="tag bad">Missing clock-out</span>';
+    if (x.status === 'Open') return '<span class="tag">Working</span>';
+    if (x.status === 'On break') return '<span class="tag">On break</span>';
+    if (x.approval === 'Needs approval') return '<span class="tag warn">Needs approval</span>';
+    if (x.approval === 'Approved') return '<span class="tag ok">Approved</span>';
+    return '<span class="tag ok">OK</span>';
+  }
+
+  // ---------------- Sign-in ----------------
+  if (!TOKEN) {
+    $('login').classList.remove('hidden');
+    if (B.bad === '1') show('That sign-in link is no longer valid. Enter your email to get a new one.', 'err', 'loginMsg');
+    $('loginBtn').onclick = () => {
+      call('requestLink', $('loginEmail').value)
+        .then((m) => show(m, 'ok', 'loginMsg'))
+        .catch((e) => show(e.message || String(e), 'err', 'loginMsg'));
+    };
+    return;
+  }
+  $('app').classList.remove('hidden');
+
+  // ---------------- Tabs ----------------
+  function openTab(name) {
+    document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+    ['clock', 'week', 'staff', 'settings'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== name));
+    show('');
+    if (name === 'week') loadWeek(week ? week.weekStart : B.week);
+    if (name === 'staff') loadStaff();
+    if (name === 'settings') loadSettings();
+  }
+  if (IS_MGR) {
+    $('tabs').classList.remove('hidden');
+    document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => openTab(b.dataset.tab)));
+  }
+
+  // ---------------- Clock ----------------
+  function tick() {
+    const d = new Date();
+    $('clockNow').textContent = d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
+    $('dateNow').textContent = d.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' });
+  }
+  tick(); setInterval(tick, 10000);
+
+  function renderClock() {
+    cur = state.currency || 'AUD';
+    $('who').textContent = state.name + (state.role === 'Manager' ? ' · Manager' : '');
+    const o = state.open;
+    let status, btns;
+    if (!o) {
+      status = 'You are clocked out';
+      btns = '<button class="btn green" data-act="IN">Clock in</button>';
+    } else if (o.status === 'On break') {
+      status = '☕ On break since ' + o.onBreakSince;
+      btns = '<button class="btn amber" data-act="BREAK_END">End break</button><button class="btn" data-act="OUT">Clock out</button>';
+    } else {
+      status = '✅ Clocked in since ' + o.clockIn + (o.breakMin ? ' · break ' + o.breakMin + ' min' : '');
+      btns = '<button class="btn amber" data-act="BREAK_START">Start break</button><button class="btn" data-act="OUT">Clock out</button>';
+    }
+    $('statusText').textContent = status;
+    $('actions').innerHTML = btns;
+    $('actions').querySelectorAll('button').forEach((b) => (b.onclick = () => doPunch(b.dataset.act)));
+
+    const w = state.week;
+    if (!w.shifts.length) { $('myWeek').innerHTML = '<span class="muted">' + esc(w.label) + ': no shifts yet.</span>'; return; }
+    let h = '<div class="muted">' + esc(w.label) + '</div><table><tr><th>Day</th><th>Time</th><th>Break</th><th>Hours</th><th></th></tr>';
+    w.shifts.forEach((x) => {
+      h += '<tr><td>' + esc(x.day) + '</td><td>' + esc(x.clockIn) + '–' + esc(x.clockOut || '…') + (x.nextDay ? ' (+1)' : '') + '</td><td>' + x.breakMin + 'm</td><td>' + (x.hours === '' ? '' : x.hours) + '</td><td>' + tagFor(x) + '</td></tr>';
+    });
+    h += '<tr><td><b>Total</b></td><td></td><td></td><td><b>' + w.hours + '</b></td><td><b>' + money(w.pay) + '</b></td></tr></table>';
+    $('myWeek').innerHTML = h;
+  }
+
+  function getLocation() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve({ error: 'Location not supported' });
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
+        (e) => resolve({ error: e.message || 'Location denied' }),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    });
+  }
+
+  function doPunch(action) {
+    const needsLoc = action === 'IN' || action === 'OUT';
+    if (needsLoc) $('loading').textContent = 'Getting your location…';
+    $('loading').classList.add('on');
+    (needsLoc ? getLocation() : Promise.resolve(null)).then((loc) => {
+      $('loading').textContent = 'Please wait…';
+      return call('punch', TOKEN, action, loc, $('note').value);
+    }).then((r) => {
+      state = r.state; $('note').value = '';
+      renderClock();
+      show(r.message, /manager/.test(r.message) ? 'info' : 'ok');
+    }).catch((e) => { $('loading').classList.remove('on'); $('loading').textContent = 'Please wait…'; fail(e); });
+  }
+
+  function loadClock() { return call('getState', TOKEN).then((s) => { state = s; renderClock(); }).catch(fail); }
+
+  // ---------------- Timesheet (manager) ----------------
+  function loadWeek(ws) { return call('mgrGetWeek', TOKEN, ws || '').then(renderWeek).catch(fail); }
+
+  function renderWeek(w) {
+    week = w; cur = w.currency || cur;
+    $('weekLabel').textContent = w.label;
+    $('fnLabel').textContent = w.fortnight.isSecondWeek ? 'Week 2 of pay fortnight (fortnight totals included in emails)' : 'Week 1 of pay fortnight';
+    $('totHours').textContent = w.totalHours;
+    $('totPay').textContent = money(w.totalPay);
+    $('totBlock').textContent = w.blocking;
+    $('otherWeeks').innerHTML = w.otherPendingWeeks.length
+      ? '<div class="msg info">Other weeks need review: ' + w.otherPendingWeeks.map((o) => '<a href="#" data-week="' + o.weekStart + '">' + esc(o.label) + '</a>').join(', ') + '</div>' : '';
+    $('otherWeeks').querySelectorAll('a').forEach((a) => (a.onclick = (ev) => { ev.preventDefault(); loadWeek(a.dataset.week); }));
+
+    let h = '';
+    w.staff.forEach((p) => {
+      h += '<div class="card"><div style="display:flex;justify-content:space-between"><h3>' + esc(p.name) + '</h3><span><b>' + p.hours + ' h</b> · ' + money(p.pay) + '</span></div>';
+      if (p.shifts.length) {
+        h += '<table><tr><th>Day</th><th>Time</th><th>Brk</th><th>Hrs</th><th></th></tr>';
+        p.shifts.forEach((x) => {
+          h += '<tr class="shift' + (x.blocking ? ' block' : '') + '" data-id="' + esc(x.id) + '"><td>' + esc(x.day) + '</td><td>' + esc(x.clockIn) + '–' + esc(x.clockOut || '?') + (x.nextDay ? ' (+1)' : '') +
+            (x.reason ? '<div class="muted">' + esc(x.reason) + '</div>' : '') + (x.staffNote ? '<div class="muted">💬 ' + esc(x.staffNote) + '</div>' : '') +
+            '</td><td>' + x.breakMin + '</td><td>' + (x.hours === '' ? '' : x.hours) + '</td><td>' + tagFor(x) + '</td></tr>';
+        });
+        h += '</table>';
+      } else {
+        h += '<div class="muted">No shifts</div>';
+      }
+      h += '<button class="btn light small" data-add="' + esc(p.id) + '" data-name="' + esc(p.name) + '" style="margin-top:8px">+ Add shift</button></div>';
+    });
+    $('weekStaff').innerHTML = h || '<div class="card muted">No staff yet. Add staff in the Staff tab.</div>';
+    $('weekStaff').querySelectorAll('tr.shift').forEach((tr) => (tr.onclick = () => openShift(tr.dataset.id)));
+    $('weekStaff').querySelectorAll('[data-add]').forEach((b) => (b.onclick = () => openShift(null, b.dataset.add, b.dataset.name)));
+
+    let info = '';
+    if (w.approvedAt) info = 'Approved by ' + w.approvedBy + ' on ' + w.approvedAt + '. Approving again updates the totals and re-sends the emails.';
+    else if (w.isCurrentOrFuture) info = 'This week is still in progress.';
+    else if (w.totalHours === 0) info = 'No shifts recorded in this week.';
+    else if (w.blocking) info = 'Review the highlighted shifts before approving.';
+    else info = 'Everything is ready to approve.';
+    $('approveInfo').textContent = info;
+    $('approveWeek').disabled = w.blocking > 0 || w.totalHours === 0;
+    $('approveWeek').textContent = w.approvedAt ? 'Re-approve & re-send summaries' : 'Approve week & email summaries';
+    if (w.message) show(w.message, 'ok');
+  }
+
+  $('prevWeek').onclick = () => loadWeek(shiftWeek(-7));
+  $('nextWeek').onclick = () => loadWeek(shiftWeek(7));
+  function shiftWeek(n) {
+    const p = week.weekStart.split('-').map(Number);
+    return new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)).toISOString().slice(0, 10);
+  }
+  $('approveWeek').onclick = () => {
+    if (!confirm('Approve ' + week.label + ' and email each staff member their hours and pay?')) return;
+    call('mgrApproveWeek', TOKEN, week.weekStart).then(renderWeek).catch(fail);
+  };
+
+  function findShift(id) {
+    for (const p of week.staff) for (const x of p.shifts) if (x.id === id) return x;
+    return null;
+  }
+  function openShift(id, staffId, staffName) {
+    const x = id ? findShift(id) : null;
+    editing = x ? { id: x.id } : { staffId: staffId };
+    $('smTitle').textContent = x ? x.name + ' · ' + x.day : 'Add shift for ' + staffName;
+    $('smInfo').innerHTML = x ? [
+      'Clock-in location: <b>' + esc(x.inLocation) + '</b>' + (x.inDistance !== '' ? ' (' + x.inDistance + ' m away)' : ''),
+      x.outLocation ? 'Clock-out location: <b>' + esc(x.outLocation) + '</b>' + (x.outDistance !== '' ? ' (' + x.outDistance + ' m away)' : '') : '',
+      x.staffNote ? 'Staff note: ' + esc(x.staffNote) : '',
+      'Status: ' + tagFor(x) + ' · Rate ' + money(x.rate) + '/h',
+    ].filter(Boolean).join('<br>') : 'This shift will be marked as approved.';
+    $('smDate').value = x ? x.date : (week.weekStart);
+    $('smIn').value = x ? x.clockIn : '';
+    $('smOut').value = x ? x.clockOut : '';
+    $('smBreak').value = x ? x.breakMin : 0;
+    $('smNote').value = x ? x.managerNote : '';
+    $('smSave').classList.toggle('hidden', !x);
+    $('smReject').classList.toggle('hidden', !x);
+    $('smApprove').textContent = x ? 'Save & approve' : 'Add shift';
+    $('shiftModal').classList.add('on');
+  }
+  function closeShift() { $('shiftModal').classList.remove('on'); editing = null; }
+  function saveShift(decision) {
+    const data = { date: $('smDate').value, clockIn: $('smIn').value, clockOut: $('smOut').value, breakMin: $('smBreak').value, managerNote: $('smNote').value, decision: decision };
+    const p = editing.id ? call('mgrUpdateShift', TOKEN, editing.id, data) : call('mgrAddShift', TOKEN, editing.staffId, data);
+    p.then((w) => { closeShift(); renderWeek(w); show('Saved.', 'ok'); }).catch((e) => alert(e.message || e));
+  }
+  $('smApprove').onclick = () => saveShift('approve');
+  $('smSave').onclick = () => saveShift('save');
+  $('smReject').onclick = () => { if (confirm('Reject this shift? It will not be paid.')) saveShift('reject'); };
+  $('smCancel').onclick = closeShift;
+
+  // ---------------- Staff (manager) ----------------
+  function loadStaff() { return call('mgrListStaff', TOKEN).then(renderStaff).catch(fail); }
+  function renderStaff(list) {
+    staff = list;
+    let h = '<table><tr><th>Name</th><th>Rate</th><th>Role</th><th></th></tr>';
+    list.forEach((p) => {
+      h += '<tr class="shift" data-id="' + esc(p.id) + '"><td>' + esc(p.name) + '<div class="muted">' + esc(p.email) + '</div></td><td>' + money(p.rate) + '</td><td>' + esc(p.role) + '</td><td>' +
+        (p.active ? '<span class="tag ok">Active</span>' : '<span class="tag">Inactive</span>') + '</td></tr>';
+    });
+    $('staffList').innerHTML = h + '</table><p class="muted">Tap a person to edit, or to email them their sign-in link.</p>';
+    $('staffList').querySelectorAll('tr.shift').forEach((tr) => (tr.onclick = () => openStaff(tr.dataset.id)));
+  }
+  function openStaff(id) {
+    const p = staff.find((x) => x.id === id);
+    editingStaff = p ? p.id : null;
+    $('stTitle').textContent = p ? 'Edit ' + p.name : 'Add staff member';
+    $('stName').value = p ? p.name : '';
+    $('stEmail').value = p ? p.email : '';
+    $('stRate').value = p ? p.rate : '';
+    $('stRole').value = p ? p.role : 'Staff';
+    $('stActive').value = !p || p.active ? 'yes' : 'no';
+    $('stLinkBtns').classList.toggle('hidden', !p);
+    $('stSave').textContent = p ? 'Save' : 'Add & email sign-in link';
+    $('staffModal').classList.add('on');
+  }
+  $('addStaff').onclick = () => openStaff(null);
+  $('stCancel').onclick = () => $('staffModal').classList.remove('on');
+  $('stSave').onclick = () => {
+    call('mgrSaveStaff', TOKEN, { id: editingStaff, name: $('stName').value, email: $('stEmail').value, rate: $('stRate').value, role: $('stRole').value, active: $('stActive').value === 'yes' })
+      .then((r) => { $('staffModal').classList.remove('on'); renderStaff(r.staff); show(r.message, 'ok'); })
+      .catch((e) => alert(e.message || e));
+  };
+  $('stSend').onclick = () => call('mgrSendLink', TOKEN, editingStaff, false).then((m) => { $('staffModal').classList.remove('on'); show(m, 'ok'); }).catch((e) => alert(e.message || e));
+  $('stReset').onclick = () => {
+    if (!confirm('Create a new link? Their old link will stop working.')) return;
+    call('mgrSendLink', TOKEN, editingStaff, true).then((m) => { $('staffModal').classList.remove('on'); show(m, 'ok'); }).catch((e) => alert(e.message || e));
+  };
+
+  // ---------------- Settings (manager) ----------------
+  let pendingLoc = null;
+  function loadSettings() { return call('mgrGetSettings', TOKEN).then(renderSettings).catch(fail); }
+  function renderSettings(s) {
+    pendingLoc = null;
+    $('locNow').innerHTML = s.lat ? 'Saved location: <b>' + esc(s.lat) + ', ' + esc(s.lng) + '</b> · <a target="_blank" href="https://maps.google.com/?q=' + encodeURIComponent(s.lat + ',' + s.lng) + '">view on map</a>'
+      : '<span class="tag warn">Not set yet</span>: until it is set, every clock-in needs manager approval.';
+    $('radius').value = s.radius;
+    $('fortnight').value = s.fortnight;
+    $('bizName').value = s.name;
+    $('sheetLink').href = s.sheetUrl;
+  }
+  $('useLoc').onclick = () => {
+    $('loading').textContent = 'Getting your location…'; $('loading').classList.add('on');
+    getLocation().then((l) => {
+      $('loading').classList.remove('on'); $('loading').textContent = 'Please wait…';
+      if (l.error) return fail(new Error('Could not get location: ' + l.error + '. Check that location is allowed for your browser.'));
+      if (l.acc > 100 && !confirm('GPS accuracy is only ' + Math.round(l.acc) + ' m. Save anyway? (Try again outside or near a window for better accuracy.)')) return;
+      return call('mgrSaveSettings', TOKEN, { lat: l.lat, lng: l.lng }).then((s) => { renderSettings(s); show('Restaurant location saved (accuracy ' + Math.round(l.acc) + ' m).', 'ok'); });
+    }).catch(fail);
+  };
+  $('saveSettings').onclick = () => {
+    call('mgrSaveSettings', TOKEN, { radius: $('radius').value, fortnight: $('fortnight').value, name: $('bizName').value })
+      .then((s) => { renderSettings(s); show('Settings saved.', 'ok'); }).catch(fail);
+  };
+
+  // ---------------- Start ----------------
+  loadClock().then(() => {
+    if (IS_MGR && state && !state.locationReady) show('Set the restaurant location in Settings (stand inside the restaurant).', 'info');
+    if (IS_MGR && B.page && B.page !== 'clock') openTab(B.page);
+  });
+})();
+</script>
+</body>
+</html>
