@@ -36,6 +36,7 @@ const HEADERS = {
 
 const SETTING = {
   NAME: 'Business name',
+  ADDRESS: 'Restaurant address',
   LAT: 'Restaurant latitude',
   LNG: 'Restaurant longitude',
   RADIUS: 'Allowed radius (metres)',
@@ -48,6 +49,7 @@ const STATUS = { OPEN: 'Open', BREAK: 'On break', DONE: 'Complete', MISSING: 'Mi
 const APPROVAL = { AUTO: 'Auto-approved', NEEDS: 'Needs approval', OK: 'Approved', REJECTED: 'Rejected' };
 const LOC = { ON: 'On site', OFF: 'Off site', NONE: 'No location', UNSET: 'Restaurant location not set', MANUAL: 'Manual entry' };
 const MAX_SHIFT_HOURS = 16;
+const DEFAULT_ADDRESS = '19 Aurelia St, Toongabbie NSW 2146, Australia (Portico Plaza)';
 
 function idx_(name) {
   const m = {};
@@ -123,8 +125,9 @@ function setup() {
   if (set.getLastRow() < 2) {
     const thisMonday = weekStartOf_(ymd_(new Date()));
     set.getRange('B:B').setNumberFormat('@');
-    set.getRange(2, 1, 7, 3).setValues([
+    set.getRange(2, 1, 8, 3).setValues([
       [SETTING.NAME, 'MaaMadurai', ''],
+      [SETTING.ADDRESS, DEFAULT_ADDRESS, 'Used to find the restaurant GPS position if it has not been set from a phone'],
       [SETTING.LAT, '', 'Set from the app: Manager → Settings → Use my current location (stand inside the restaurant)'],
       [SETTING.LNG, '', ''],
       [SETTING.RADIUS, '150', 'Clock-ins further than this from the restaurant need manager approval'],
@@ -142,6 +145,8 @@ function setup() {
   }
   const blank = ss.getSheetByName('Sheet1');
   if (blank && blank.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(blank);
+
+  try { geocodeAddress_(); } catch (err) { console.warn('Geocoding failed: ' + err); }
 
   installTriggers_();
   PropertiesService.getScriptProperties().setProperty('SETUP_DONE', 'yes');
@@ -194,8 +199,8 @@ function getState(token) {
   const open = openShiftFor_(shifts, user.id);
   const week = weekStartOf_(ymd_(new Date()));
   const mine = shifts.filter(function (x) { return x.staffId === user.id && x.weekStart === week; });
-  let hours = 0, pay = 0;
-  mine.forEach(function (x) { if (x.approval !== APPROVAL.REJECTED) { hours += num_(x.hours); pay += num_(x.pay); } });
+  let hours = 0;
+  mine.forEach(function (x) { if (x.approval !== APPROVAL.REJECTED) hours += num_(x.hours); });
   return {
     name: user.name,
     role: user.role,
@@ -211,9 +216,8 @@ function getState(token) {
     } : null,
     week: {
       label: weekLabel_(week),
-      shifts: mine.map(shiftView_),
+      shifts: mine.map(staffShiftView_), // pay & rate are never sent to staff screens
       hours: round2_(hours),
-      pay: round2_(pay),
     },
   };
 }
@@ -458,7 +462,7 @@ function mgrApproveWeek(token, weekStart) {
     if (!p.email) return;
     MailApp.sendEmail({
       to: p.email,
-      subject: biz + ': your hours for ' + weekLabel_(weekStart) + ' (' + p.hours + ' h, ' + money_(p.pay, cur) + ')',
+      subject: biz + ': your hours for ' + weekLabel_(weekStart) + ' (' + p.hours + ' h)',
       htmlBody: staffEmailHtml_(p, weekStart, result.fn, cur, biz),
       name: biz + ' Clocking',
     });
@@ -535,7 +539,7 @@ function mgrGetSettings(token) {
   auth_(token, true);
   const s = settings_();
   return {
-    name: s[SETTING.NAME], lat: s[SETTING.LAT], lng: s[SETTING.LNG], radius: s[SETTING.RADIUS],
+    name: s[SETTING.NAME], address: s[SETTING.ADDRESS] || DEFAULT_ADDRESS, lat: s[SETTING.LAT], lng: s[SETTING.LNG], radius: s[SETTING.RADIUS],
     currency: s[SETTING.CURRENCY], fortnight: s[SETTING.FORTNIGHT], sheetUrl: ss_().getUrl(),
   };
 }
@@ -560,6 +564,11 @@ function mgrSaveSettings(token, data) {
     upd[SETTING.FORTNIGHT] = weekStartOf_(data.fortnight);
   }
   if (data.name) upd[SETTING.NAME] = String(data.name).slice(0, 60);
+  saveSettings_(upd);
+  return mgrGetSettings(token);
+}
+
+function saveSettings_(upd) {
   const sh = sheet_(SHEET.SETTINGS);
   const rows = rows_(SHEET.SETTINGS);
   Object.keys(upd).forEach(function (k) {
@@ -567,7 +576,6 @@ function mgrSaveSettings(token, data) {
     if (i >= 0) sh.getRange(i + 2, 2).setValue(upd[k]);
     else appendRow_(SHEET.SETTINGS, [k, upd[k], '']);
   });
-  return mgrGetSettings(token);
 }
 
 // ---------------------------------------------------------------------------
@@ -695,21 +703,22 @@ function summaryTable_(people, cur, withFortnight) {
 }
 
 function staffEmailHtml_(p, weekStart, fn, cur, biz) {
+  // Hours only. Pay amounts are shown to managers only.
   const td = 'style="padding:6px 10px;border-bottom:1px solid #eee"';
   const th = 'style="text-align:left;padding:6px 10px;border-bottom:2px solid #ddd"';
   let rows = '';
   p.shifts.forEach(function (x) {
-    rows += '<tr><td ' + td + '>' + niceDate_(x.date) + '</td><td ' + td + '>' + hm_(x.clockIn) + '–' + hm_(x.clockOut) + '</td><td ' + td + '>' + num_(x.breakMin) + ' min</td><td ' + td + '>' + x.hours + '</td><td ' + td + '>' + money_(x.pay, cur) + '</td></tr>';
+    rows += '<tr><td ' + td + '>' + niceDate_(x.date) + '</td><td ' + td + '>' + hm_(x.clockIn) + '–' + hm_(x.clockOut) + '</td><td ' + td + '>' + num_(x.breakMin) + ' min</td><td ' + td + '>' + x.hours + '</td></tr>';
   });
   return '<div style="font-family:Arial,sans-serif;font-size:15px">' +
     '<p>Hi ' + esc_(p.name) + ',</p>' +
     '<p>Your timesheet for <b>' + weekLabel_(weekStart) + '</b> has been approved.</p>' +
-    '<table style="border-collapse:collapse;font-size:14px"><tr><th ' + th + '>Day</th><th ' + th + '>Time</th><th ' + th + '>Break</th><th ' + th + '>Hours</th><th ' + th + '>Pay</th></tr>' + rows +
-    '<tr><td ' + td + '><b>Total</b></td><td ' + td + '></td><td ' + td + '></td><td ' + td + '><b>' + p.hours + '</b></td><td ' + td + '><b>' + money_(p.pay, cur) + '</b></td></tr></table>' +
+    '<table style="border-collapse:collapse;font-size:14px"><tr><th ' + th + '>Day</th><th ' + th + '>Time</th><th ' + th + '>Break</th><th ' + th + '>Hours</th></tr>' + rows +
+    '<tr><td ' + td + '><b>Total</b></td><td ' + td + '></td><td ' + td + '></td><td ' + td + '><b>' + p.hours + '</b></td></tr></table>' +
     (fn.isSecondWeek
-      ? '<p><b>Pay fortnight ' + fortnightLabel_(fn) + ':</b> ' + p.fnHours + ' hours, ' + money_(p.fnPay, cur) + '</p>'
+      ? '<p><b>Pay fortnight ' + fortnightLabel_(fn) + ':</b> ' + p.fnHours + ' hours in total.</p>'
       : '<p style="color:#666">This is week 1 of the pay fortnight ' + fortnightLabel_(fn) + '.</p>') +
-    '<p style="color:#666;font-size:13px">Pay shown is gross (before tax and super). If anything looks wrong, please speak to your manager.</p>' +
+    '<p style="color:#666;font-size:13px">If any times look wrong, please speak to your manager.</p>' +
     '<p>Thanks,<br>' + esc_(biz) + '</p></div>';
 }
 
@@ -900,6 +909,31 @@ function applyTimes_(sh, data) {
   sh.breakMin = Math.round(br);
 }
 
+/**
+ * Look up the restaurant address with Google Maps and save its GPS position.
+ * Only fills the position if it is empty, unless force is true.
+ */
+function geocodeAddress_(force) {
+  const s = settings_();
+  if (!force && !isNaN(parseFloat(s[SETTING.LAT]))) return null;
+  const address = (s[SETTING.ADDRESS] || DEFAULT_ADDRESS).replace(/\(.*?\)/g, '').trim();
+  const res = Maps.newGeocoder().setRegion('au').geocode(address);
+  if (!res || res.status !== 'OK' || !res.results.length) throw new Error('Address not found: ' + address);
+  const g = res.results[0].geometry.location;
+  saveSettings_({ [SETTING.LAT]: Number(g.lat).toFixed(6), [SETTING.LNG]: Number(g.lng).toFixed(6) });
+  return { lat: g.lat, lng: g.lng, formatted: res.results[0].formatted_address };
+}
+
+/** Manager: re-find the restaurant position from the address. */
+function mgrGeocode(token, address) {
+  auth_(token, true);
+  if (address) saveSettings_({ [SETTING.ADDRESS]: String(address).slice(0, 200) });
+  const r = geocodeAddress_(true);
+  const out = mgrGetSettings(token);
+  out.message = 'Location found: ' + r.formatted + '. For best accuracy, also tap "Use my current location" while standing inside the restaurant.';
+  return out;
+}
+
 function evalLocation_(loc, s) {
   if (!loc || !isFinite(loc.lat) || !isFinite(loc.lng)) return { status: LOC.NONE, distance: '' };
   const lat = parseFloat(s[SETTING.LAT]), lng = parseFloat(s[SETTING.LNG]);
@@ -969,6 +1003,14 @@ function shiftView_(x) {
     blocking: isBlocking_(x),
     sortKey: x.clockIn instanceof Date ? x.clockIn.getTime() : 0,
   };
+}
+
+/** Shift view for the staff screen: no pay or hourly rate. */
+function staffShiftView_(x) {
+  const v = shiftView_(x);
+  delete v.pay;
+  delete v.rate;
+  return v;
 }
 
 function link_(token) {

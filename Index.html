@@ -122,9 +122,11 @@
     <section id="tab-settings" class="hidden">
       <div class="card">
         <h2>Restaurant location</h2>
-        <p class="muted">Stand inside the restaurant and tap the button below. Clock-ins further away than the radius go to you for approval.</p>
+        <p class="muted">Clock-ins further away than the radius go to you for approval. For the best accuracy, stand inside the restaurant and tap <b>Use my current location</b>.</p>
         <div id="locNow" style="margin:8px 0"></div>
         <button class="btn" id="useLoc">📍 Use my current location</button>
+        <label>Address<input id="address" maxlength="200"></label>
+        <button class="btn light" id="findAddr">Find location from address</button>
         <label>Allowed radius (metres)<input id="radius" type="number" min="20" max="5000"></label>
       </div>
       <div class="card">
@@ -271,7 +273,7 @@
     w.shifts.forEach((x) => {
       h += '<tr><td>' + esc(x.day) + '</td><td>' + esc(x.clockIn) + '–' + esc(x.clockOut || '…') + (x.nextDay ? ' (+1)' : '') + '</td><td>' + x.breakMin + 'm</td><td>' + (x.hours === '' ? '' : x.hours) + '</td><td>' + tagFor(x) + '</td></tr>';
     });
-    h += '<tr><td><b>Total</b></td><td></td><td></td><td><b>' + w.hours + '</b></td><td><b>' + money(w.pay) + '</b></td></tr></table>';
+    h += '<tr><td><b>Total</b></td><td></td><td></td><td><b>' + w.hours + ' h</b></td><td></td></tr></table>';
     $('myWeek').innerHTML = h;
   }
 
@@ -439,6 +441,7 @@
     $('locNow').innerHTML = s.lat ? 'Saved location: <b>' + esc(s.lat) + ', ' + esc(s.lng) + '</b> · <a target="_blank" href="https://maps.google.com/?q=' + encodeURIComponent(s.lat + ',' + s.lng) + '">view on map</a>'
       : '<span class="tag warn">Not set yet</span>: until it is set, every clock-in needs manager approval.';
     $('radius').value = s.radius;
+    $('address').value = s.address || '';
     $('fortnight').value = s.fortnight;
     $('bizName').value = s.name;
     $('sheetLink').href = s.sheetUrl;
@@ -451,6 +454,9 @@
       if (l.acc > 100 && !confirm('GPS accuracy is only ' + Math.round(l.acc) + ' m. Save anyway? (Try again outside or near a window for better accuracy.)')) return;
       return call('mgrSaveSettings', TOKEN, { lat: l.lat, lng: l.lng }).then((s) => { renderSettings(s); show('Restaurant location saved (accuracy ' + Math.round(l.acc) + ' m).', 'ok'); });
     }).catch(fail);
+  };
+  $('findAddr').onclick = () => {
+    call('mgrGeocode', TOKEN, $('address').value).then((s) => { renderSettings(s); show(s.message, 'ok'); }).catch(fail);
   };
   $('saveSettings').onclick = () => {
     call('mgrSaveSettings', TOKEN, { radius: $('radius').value, fortnight: $('fortnight').value, name: $('bizName').value })

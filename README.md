@@ -7,11 +7,11 @@ Clock in / clock out app for MaaMadurai staff. It runs free on Google Apps Scrip
 **Staff (on their phone)**
 - **Clock in**, **Start break**, **End break**, **Clock out**, with an optional note.
 - GPS is checked at clock in and clock out. Within 150 m of the restaurant the shift is auto-approved. Further away, or with location off, the shift is still saved but goes to the manager to approve.
-- Staff can see this week's shifts, hours and estimated pay.
+- Staff can see this week's shifts and hours. **Pay amounts and hourly rates are never shown to staff**: only managers see them, in the app and in emails.
 
 **Manager**
 - **Timesheet** tab: weekly view per staff member. Flagged shifts are highlighted. Tap a shift to fix times, approve or reject it, or add a forgotten shift. Overnight shifts work: if clock-out is earlier than clock-in, it counts as the next day.
-- **Approve week**: saves totals to the *Timesheets* tab and emails each staff member their hours and pay. The manager gets a summary of all staff. In the 2nd week of a pay fortnight, the emails also show fortnight totals for payroll.
+- **Approve week**: saves totals to the *Timesheets* tab and emails each staff member their hours (no pay amounts). The manager gets a summary of hours and pay for all staff. In the 2nd week of a pay fortnight, the emails also show fortnight totals for payroll.
 - **Staff** tab: add staff with name, email and hourly rate. Their sign-in link is emailed automatically. You can resend or reset links and mark people inactive.
 - **Settings** tab: set the restaurant location (stand inside and tap *Use my current location*), the radius, and the pay fortnight start.
 
@@ -25,7 +25,7 @@ Clock in / clock out app for MaaMadurai staff. It runs free on Google Apps Scrip
 
 | Tab | Contents |
 |---|---|
-| Settings | Restaurant GPS, radius, currency, pay fortnight start |
+| Settings | Restaurant address and GPS, radius, currency, pay fortnight start |
 | Staff | Name, email, **hourly rate**, role (Staff/Manager), active |
 | Shifts | One row per shift: times, break minutes, hours, pay, GPS result, approval |
 | Events | Every button press with raw GPS coordinates |
@@ -62,8 +62,9 @@ Clock in / clock out app for MaaMadurai staff. It runs free on Google Apps Scrip
 2. Check **naveentamil@gmail.com** for the email *"your clock in / clock out link"* and open it. This is your manager link, so don't share it.
 3. Add it to your home screen.
 
-### 5. Set the restaurant location
-1. **Stand inside the restaurant**, open your manager link, then go to **Settings → 📍 Use my current location** and allow location.
+### 5. Check the restaurant location
+The first run finds **19 Aurelia St, Toongabbie NSW 2146 (Portico Plaza)** on Google Maps automatically. To check it, go to **Settings** and tap **view on map**.
+1. For the best accuracy, **stand inside the restaurant**, open your manager link, then go to **Settings → 📍 Use my current location** and allow location. GPS indoors in a shopping plaza can be off by 20–50 m. The 150 m radius allows for that.
 2. Leave the radius at 150 m, or change it.
 3. Set **Pay fortnight starts** to the Monday your current pay fortnight began, then **Save settings**.
 
