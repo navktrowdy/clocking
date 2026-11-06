@@ -650,11 +650,13 @@ function sendSignInLink_(p) {
   MailApp.sendEmail({
     to: p.email,
     subject: biz + ': your clock in / clock out link',
+    body: 'Hi ' + p.name + ',\n\nYour personal clock in / clock out link for ' + biz + ':\n' + url + '\n\nOpen it on your phone and add it to your home screen. Do not share this link.',
     htmlBody:
       '<div style="font-family:Arial,sans-serif;font-size:15px">' +
       '<p>Hi ' + esc_(p.name) + ',</p>' +
       '<p>This is your personal link for clocking in and out at ' + esc_(biz) + (p.role === 'Manager' ? ' (manager access)' : '') + '.</p>' +
       '<p><a href="' + url + '" style="background:#b91c1c;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;display:inline-block">Open my clock</a></p>' +
+      '<p>If the button does not work, copy this link into your browser:<br><a href="' + url + '">' + url + '</a></p>' +
       '<p><b>Tip:</b> open the link on your phone, then use <i>Share → Add to Home Screen</i> (iPhone) or <i>⋮ → Add to Home screen</i> (Android) so it works like an app.</p>' +
       '<p style="color:#666;font-size:13px">Do not share this link. It signs in as you. If you lose it, open the app and request a new link with this email address.</p></div>',
     name: biz + ' Clocking',
