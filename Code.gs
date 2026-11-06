@@ -1,10 +1,13 @@
 /**
  * MaaMadurai Clocking: staff clock in / clock out
+ *
+ * The app screens are hosted on GitHub Pages (docs/index.html → APP_URL below).
+ * This script is the backend: it stores everything in the Google Sheet, sends
+ * the emails and answers the app's requests through doPost.
  * Google Apps Script web app, bound to a Google Sheet.
  *
  * Paste this file into Extensions → Apps Script → Code.gs of your Google Sheet,
- * add Index.html, then Deploy → New deployment → Web app.
- * See README.md for step-by-step setup.
+ * then Deploy → New deployment → Web app. See README.md for step-by-step setup.
  */
 
 // ---------------------------------------------------------------------------
@@ -49,6 +52,9 @@ const STATUS = { OPEN: 'Open', BREAK: 'On break', DONE: 'Complete', MISSING: 'Mi
 const APPROVAL = { AUTO: 'Auto-approved', NEEDS: 'Needs approval', OK: 'Approved', REJECTED: 'Rejected' };
 const LOC = { ON: 'On site', OFF: 'Off site', NONE: 'No location', UNSET: 'Restaurant location not set', MANUAL: 'Manual entry' };
 const MAX_SHIFT_HOURS = 16;
+
+/** Where the app screens live (GitHub Pages). Leave '' to link to this script instead. */
+const APP_URL = 'https://navktrowdy.github.io/clocking/';
 const DEFAULT_ADDRESS = '19 Aurelia St, Toongabbie NSW 2146, Australia (Portico Plaza)';
 
 function idx_(name) {
@@ -70,19 +76,36 @@ function doGet(e) {
     return page_('Setup complete',
       'Your manager sign-in link has been emailed to <b>' + esc_(owner) + '</b>. Open that email on your phone to continue.');
   }
+  // Old links that point at this script: send people to the app.
   const token = /^[a-f0-9]{32}$/.test(p.t || '') ? p.t : '';
-  const user = token ? findStaffByToken_(token) : null;
+  let url = APP_URL || '';
+  if (token) url += '?t=' + token;
+  return page_('MaaMadurai Clock',
+    url ? '<a target="_top" href="' + esc_(url) + '" style="background:#b91c1c;color:#fff;padding:14px 20px;border-radius:10px;text-decoration:none;display:inline-block">Open the clock app</a>'
+      : 'The app link is not configured (APP_URL in Code.gs).');
+}
 
-  const t = HtmlService.createTemplateFromFile('Index');
-  t.token = user ? token : '';
-  t.isManager = user && user.role === 'Manager' ? '1' : '';
-  t.badToken = p.t && !user ? '1' : '';
-  t.page = /^(clock|week|staff|settings)$/.test(p.page || '') ? p.page : '';
-  t.week = /^\d{4}-\d{2}-\d{2}$/.test(p.week || '') ? p.week : '';
-  t.appName = settings_()[SETTING.NAME] || 'MaaMadurai';
-  return t.evaluate()
-    .setTitle(t.appName + ' Clock')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1');
+/** JSON API used by the app (docs/index.html). Body: {"fn": "getState", "args": [...]} */
+function doPost(e) {
+  const api = {
+    requestLink: requestLink, getState: getState, punch: punch,
+    mgrGetWeek: mgrGetWeek, mgrUpdateShift: mgrUpdateShift, mgrAddShift: mgrAddShift,
+    mgrApproveWeek: mgrApproveWeek, mgrListStaff: mgrListStaff, mgrSaveStaff: mgrSaveStaff,
+    mgrSendLink: mgrSendLink, mgrGetSettings: mgrGetSettings, mgrSaveSettings: mgrSaveSettings,
+    mgrGeocode: mgrGeocode,
+  };
+  let out;
+  try {
+    if (!isSetUp_()) throw new Error('The app is not set up yet. Open the script web app link once first.');
+    const req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    const fn = api[req.fn];
+    if (!fn) throw new Error('Unknown request.');
+    const args = Array.isArray(req.args) ? req.args.slice(0, 5) : [];
+    out = { ok: true, result: fn.apply(null, args) };
+  } catch (err) {
+    out = { ok: false, error: (err && err.message) || String(err) };
+  }
+  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function page_(title, html) {
@@ -204,6 +227,7 @@ function getState(token) {
   return {
     name: user.name,
     role: user.role,
+    appName: s[SETTING.NAME] || 'MaaMadurai',
     currency: s[SETTING.CURRENCY] || 'AUD',
     locationReady: !isNaN(parseFloat(s[SETTING.LAT])),
     open: open ? {
@@ -1016,7 +1040,7 @@ function staffShiftView_(x) {
 }
 
 function link_(token) {
-  const url = ScriptApp.getService().getUrl();
+  const url = APP_URL || ScriptApp.getService().getUrl();
   return url ? url + '?t=' + token : '';
 }
 function newToken_() { return Utilities.getUuid().replace(/-/g, '').toLowerCase(); }
@@ -1029,6 +1053,3 @@ function esc_(s) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   });
 }
-
-/** Lets Index.html include other files if needed. */
-function include(name) { return HtmlService.createHtmlOutputFromFile(name).getContent(); }

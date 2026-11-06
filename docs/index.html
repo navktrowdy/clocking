@@ -1,8 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-<base target="_top">
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MaaMadurai Clock">
+<meta name="theme-color" content="#b91c1c">
+<title>MaaMadurai Clock</title>
 <style>
   :root { --red:#b91c1c; --red2:#991b1b; --green:#15803d; --amber:#b45309; --grey:#6b7280; --bg:#f6f4f1; --card:#fff; --line:#e5e7eb; }
   * { box-sizing:border-box; }
@@ -51,7 +56,7 @@
   a { color:var(--red); }
 </style>
 </head>
-<body data-token="<?= token ?>" data-manager="<?= isManager ?>" data-bad="<?= badToken ?>" data-app="<?= appName ?>" data-page="<?= page ?>" data-week="<?= week ?>">
+<body>
 
 <!-- Sign-in -->
 <div id="login" class="hidden">
@@ -180,8 +185,17 @@
 
 <script>
 (function () {
-  const B = document.body.dataset;
-  const TOKEN = B.token, IS_MGR = B.manager === '1';
+  // Google Apps Script backend (Deploy → Manage deployments → Web app URL)
+  const API_URL = 'https://script.google.com/macros/s/AKfycbyLZeDvu8ZiJQPGc44BGWW8P-LaGd0vklNLuOrV7VW-V9jDPISfx2yYxb4ivWqXBQLt/exec';
+
+  const q = new URLSearchParams(location.search);
+  const tParam = /^[a-f0-9]{32}$/.test(q.get('t') || '') ? q.get('t') : '';
+  if (tParam) { try { localStorage.setItem('clockToken', tParam); } catch (e) {} }
+  let saved = '';
+  try { saved = localStorage.getItem('clockToken') || ''; } catch (e) {}
+  const B = { page: q.get('page') || '', week: q.get('week') || '', app: 'MaaMadurai', bad: '' };
+  const TOKEN = tParam || saved;
+  let IS_MGR = false;
   let state = null, week = null, staff = [], editing = null, editingStaff = null, cur = 'AUD';
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -190,11 +204,16 @@
 
   function call(fn, ...args) {
     $('loading').classList.add('on');
-    return new Promise((resolve, reject) => {
-      google.script.run
-        .withSuccessHandler((r) => { $('loading').classList.remove('on'); resolve(r); })
-        .withFailureHandler((e) => { $('loading').classList.remove('on'); reject(e); })[fn](...args);
-    });
+    // text/plain avoids a CORS preflight, which Apps Script does not support
+    return fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
+      .then((r) => r.json())
+      .then((r) => { $('loading').classList.remove('on'); if (!r.ok) throw new Error(r.error); return r.result; },
+        (e) => { $('loading').classList.remove('on'); throw /Unexpected|JSON/.test(e.message) || e instanceof TypeError ? new Error('Could not reach the server. Check your internet connection and try again.') : e; });
+  }
+  function showLogin(bad) {
+    $('app').classList.add('hidden');
+    $('login').classList.remove('hidden');
+    if (bad) show('That sign-in link is no longer valid. Enter your email to get a new one.', 'err', 'loginMsg');
   }
   function show(text, kind, where) {
     const el = $(where || 'msg');
@@ -214,16 +233,12 @@
   }
 
   // ---------------- Sign-in ----------------
-  if (!TOKEN) {
-    $('login').classList.remove('hidden');
-    if (B.bad === '1') show('That sign-in link is no longer valid. Enter your email to get a new one.', 'err', 'loginMsg');
-    $('loginBtn').onclick = () => {
-      call('requestLink', $('loginEmail').value)
-        .then((m) => show(m, 'ok', 'loginMsg'))
-        .catch((e) => show(e.message || String(e), 'err', 'loginMsg'));
-    };
-    return;
-  }
+  $('loginBtn').onclick = () => {
+    call('requestLink', $('loginEmail').value)
+      .then((m) => show(m, 'ok', 'loginMsg'))
+      .catch((e) => show(e.message || String(e), 'err', 'loginMsg'));
+  };
+  if (!TOKEN) { showLogin(false); return; }
   $('app').classList.remove('hidden');
 
   // ---------------- Tabs ----------------
@@ -235,7 +250,8 @@
     if (name === 'staff') loadStaff();
     if (name === 'settings') loadSettings();
   }
-  if (IS_MGR) {
+  function enableManager() {
+    IS_MGR = true;
     $('tabs').classList.remove('hidden');
     document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => openTab(b.dataset.tab)));
   }
@@ -301,7 +317,17 @@
     }).catch((e) => { $('loading').classList.remove('on'); $('loading').textContent = 'Please wait…'; fail(e); });
   }
 
-  function loadClock() { return call('getState', TOKEN).then((s) => { state = s; renderClock(); }).catch(fail); }
+  function loadClock() {
+    return call('getState', TOKEN).then((s) => {
+      state = s;
+      document.querySelectorAll('.appname').forEach((e) => (e.textContent = (s.appName || 'MaaMadurai') + ' Clock'));
+      if (s.role === 'Manager' && !IS_MGR) enableManager();
+      renderClock();
+    }).catch((e) => {
+      if (/sign-in link/.test(e.message)) { try { localStorage.removeItem('clockToken'); } catch (x) {} showLogin(true); }
+      else fail(e);
+    });
+  }
 
   // ---------------- Timesheet (manager) ----------------
   function loadWeek(ws) { return call('mgrGetWeek', TOKEN, ws || '').then(renderWeek).catch(fail); }

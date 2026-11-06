@@ -1,6 +1,9 @@
 # MaaMadurai Clocking
 
-Clock in / clock out app for MaaMadurai staff. It runs free on Google Apps Script, and every record is saved in a Google Sheet.
+Clock in / clock out app for MaaMadurai staff.
+
+- **App:** https://navktrowdy.github.io/clocking/ (GitHub Pages, from [`docs/index.html`](docs/index.html))
+- **Backend:** Google Apps Script ([`Code.gs`](Code.gs)) bound to a Google Sheet. It stores the data, sends the emails and runs the weekly jobs. Free.
 
 ## What it does
 
@@ -46,7 +49,7 @@ Clock in / clock out app for MaaMadurai staff. It runs free on Google Apps Scrip
 1. In the sheet: **Extensions → Apps Script**.
 2. Rename the project (top left) to **MaaMadurai Clocking**.
 3. **Code.gs**: delete everything in it, then paste in all of [`Code.gs`](Code.gs). On GitHub, tap the file, then **Raw**, select all, and copy.
-4. Click **＋ (Add a file) → HTML**, name it `Index` (it becomes `Index.html`), delete its contents, and paste in all of [`Index.html`](Index.html).
+4. Only `Code.gs` is needed in Apps Script. If you added an `Index.html` file earlier, you can delete it.
 5. **⚙ Project Settings → Time zone → (GMT+10:00) Sydney**.
 6. Click **💾 Save**.
 
@@ -56,6 +59,11 @@ Clock in / clock out app for MaaMadurai staff. It runs free on Google Apps Scrip
 3. Click **Deploy**, then **Authorize access** and choose your Google account.
    - If you see *"Google hasn't verified this app"*: tap **Advanced → Go to MaaMadurai Clocking (unsafe) → Allow**. This is normal for your own script.
 4. Copy the **Web app URL** (ends in `/exec`).
+
+### 3b. Publish the app on GitHub Pages
+1. If the Web app URL from step 3 is different from the `API_URL` near the top of the script in [`docs/index.html`](docs/index.html), update `API_URL` to match.
+2. On GitHub: **Settings → Pages → Build and deployment → Source: Deploy from a branch → Branch: `main` / folder `/docs` → Save**. Free accounts need the repo to be **public**. No passwords or staff data are in the code: everything private stays in your Google Sheet.
+3. After a minute, https://navktrowdy.github.io/clocking/ shows the sign-in page.
 
 ### 4. First run
 1. Open the Web app URL. It sets up all the tabs and shows **Setup complete**.
@@ -74,7 +82,9 @@ The first run finds **19 Aurelia St, Toongabbie NSW 2146 (Portico Plaza)** on Go
 ---
 
 ## Updating the code later
-After pasting new code: **Deploy → Manage deployments → ✏ Edit → Version: New version → Deploy**. The URL and everyone's links stay the same.
+- **Code.gs:** after pasting new code, go to **Deploy → Manage deployments → ✏ Edit → Version: New version → Deploy**. The URL stays the same.
+- **docs/index.html:** changes go live on GitHub Pages about a minute after they are merged into `main`.
+- Everyone's sign-in links keep working through both kinds of update.
 
 ## Troubleshooting
 - **"Location: No location" every time**: the phone blocked location. iPhone: **Settings → Privacy → Location Services → Safari Websites → While Using**. Android: tap the lock icon in Chrome → **Permissions → Location → Allow**. The shift is still saved, but it goes to the manager to approve.
